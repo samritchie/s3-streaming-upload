@@ -7,6 +7,10 @@
     {
       "name": "Lukas Linhart",
       "email": "lukas@apiary.io"
+    },
+    {
+      "name": "Ladislav Prskavec",
+      "email": "ladislav@apiary.io"
     }
   ],
   "dependencies": {
@@ -15,8 +19,9 @@
     "readable-stream": "~1.0.33"
   },
   "devDependencies": {
-    "coffee-script": "~1.6.3",
     "chai": "",
+    "coffee-script": "~1.6.3",
+    "mktemp": "",
     "mocha": "",
     "sinon": "",
     "streamers": ""

@@ -42,9 +42,10 @@ class Uploader extends EventEmitter
     @handleStream stream
     #process.nextTick => @initiateTransfer()
 
-    @uploadTimer = setInterval ()=>
+    @uploadTimer = setInterval =>
       #because of timeouts - otherwise every tick is "occupied" by stream operations
       @uploadChunks()
+      return
     , 5000
 
   getNewClient: ->
@@ -66,6 +67,8 @@ class Uploader extends EventEmitter
         @initiated = true
 
         @emit 'initiated', @uploadId
+        return
+    return
 
 
   handleStream: (stream) ->
@@ -79,8 +82,12 @@ class Uploader extends EventEmitter
 
       if @currentChunk.length > @partSize
         @flushPart()
+      return
 
-    readable.on 'error', (err) -> @failed = true
+    readable.on 'error', (err) ->
+      @failed = true # set failed on readable-stream, not S3-Uploader
+      return
+
     readable.on 'end', =>
       if @initiated
         @flushPart()
@@ -90,8 +97,12 @@ class Uploader extends EventEmitter
         @once 'initiated', =>
           @flushPart()
           @finishUploads()
+          return
+      return
 
     readable.resume()
+    return
+
 
   finishUploads: ->
     if @uploadTimer
@@ -106,13 +117,16 @@ class Uploader extends EventEmitter
           @uploadChunks()
         else
           @pruneParts()
-      ), 5000
+      return
+    ), 5000
+    return
+
 
   flushPart: ->
     @parts.push @currentChunk
     @currentChunk = new Buffer 0
     @uploadChunks()
-
+    return
 
 
   uploadChunks: ->
@@ -176,28 +190,40 @@ class Uploader extends EventEmitter
 
           else
             @uploadedParts[chunk.partNumber] = data.ETag
+            chunk.partNumber = null
+            chunk.progress = null
+            chunk.finished = null
+            chunk.client = null
+            chunk = null
             @emit 'uploaded', etag: data.ETag
             return next()
-
+      return
     , (err) =>
       if err
         console.error 'Cannot upload chunks', err
       @pruneParts()
+      return
+    return
+
 
   pruneParts: ->
     #TODO: AM time algorithm, do w/o recursion
     i = 0
-    finished = []
+    finishedPartsIndexes = []
     for el in @parts
       if el.finished
-        finished.push i
+        finishedPartsIndexes.push i
       i++
 
-    finished.reverse()
+    finishedPartsIndexes.reverse()
 
-    for i in finished
+    for i in finishedPartsIndexes
       @parts.splice i, 1
 
+    i = null
+    finishedPartsIndexes = null
+
+    return
 
 
 
@@ -211,6 +237,7 @@ class Uploader extends EventEmitter
     @finishInProgress = true
 
     checkPartsInterval = null
+    checkPartsCounter = 0
 
     #to give amazon S3 some time to realize that "parts" has been uploaded
     async.series [
@@ -258,8 +285,11 @@ class Uploader extends EventEmitter
                 callbackCalled = true
                 return cb new Error "Not all parts uploaded. Uploaded: #{JSON.stringify @uploadedParts}, Reported by listParts as uploaded: #{JSON.stringify data?['Parts']} after #{@waitForPartAttempts} atempts"
         ), @waitTime
-      ], (err) =>
+        return
 
+    ], (err) =>
+
+      checkPartsCounter = null
       clearInterval checkPartsInterval
 
       @emit 'finishing'
